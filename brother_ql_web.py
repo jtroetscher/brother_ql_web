@@ -116,8 +116,17 @@ def create_label_im(text, **kwargs):
         if line == '': line = ' '
         lines.append(line)
     text = '\n'.join(lines)
-    linesize = im_font.getsize(text)
-    textsize = draw.multiline_textsize(text, font=im_font)
+# start modification JT
+#    linesize = im_font.getsize(text)
+#    textsize = draw.multiline_textsize(text, font=im_font)
+    _, _, w, h = draw.multiline_textbbox((0, 0), text, font=im_font)
+# if there are multiple lines, determine the width of the longest one 
+    w = 0
+    for line in text.split('\n'):
+        _, _, ww, _ = draw.multiline_textbbox((0, 0), line, font=im_font)
+        w = max(w, ww)
+    textsize = ( w, h )
+# end modification JT
     width, height = kwargs['width'], kwargs['height']
     if kwargs['orientation'] == 'standard':
         if label_type in (ENDLESS_LABEL,):
@@ -128,12 +137,27 @@ def create_label_im(text, **kwargs):
     im = Image.new('RGB', (width, height), 'white')
     draw = ImageDraw.Draw(im)
     if kwargs['orientation'] == 'standard':
-        if label_type in (DIE_CUT_LABEL, ROUND_DIE_CUT_LABEL):
-            vertical_offset  = (height - textsize[1])//2
-            vertical_offset += (kwargs['margin_top'] - kwargs['margin_bottom'])//2
-        else:
+        if kwargs['align'] == 'center':
+            tanchor="ma" # added by JT
+            if label_type in (DIE_CUT_LABEL, ROUND_DIE_CUT_LABEL):
+                vertical_offset  = (height - textsize[1])//2
+                vertical_offset += (kwargs['margin_top'] - kwargs['margin_bottom'])//2
+            else:
+                vertical_offset = kwargs['margin_top']
+            horizontal_offset = width//2
+        elif kwargs['align'] == 'left':
+            tanchor="la" # added by JT
             vertical_offset = kwargs['margin_top']
-        horizontal_offset = max((width - textsize[0])//2, 0)
+            horizontal_offset = kwargs['margin_left']
+        else:
+            tanchor="ra" # added by JT
+            vertical_offset = kwargs['margin_top']
+            horizontal_offset = max(width, textsize[0])
+            horizontal_offset -= kwargs['margin_right']
+
+        offset = horizontal_offset, vertical_offset
+        draw.multiline_text(offset, text, kwargs['fill_color'], font=im_font, align=kwargs['align'], anchor=tanchor) # anchor added
+
     elif kwargs['orientation'] == 'rotated':
         vertical_offset  = (height - textsize[1])//2
         vertical_offset += (kwargs['margin_top'] - kwargs['margin_bottom'])//2
@@ -141,8 +165,8 @@ def create_label_im(text, **kwargs):
             horizontal_offset = max((width - textsize[0])//2, 0)
         else:
             horizontal_offset = kwargs['margin_left']
-    offset = horizontal_offset, vertical_offset
-    draw.multiline_text(offset, text, kwargs['fill_color'], font=im_font, align=kwargs['align'])
+        offset = horizontal_offset, vertical_offset
+        draw.multiline_text(offset, text, kwargs['fill_color'], font=im_font, align=kwargs['align']) # anchor not supported!
     return im
 
 @get('/api/preview/text')
